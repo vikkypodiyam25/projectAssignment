@@ -1,46 +1,54 @@
 ﻿# Dispatch — Email Job Scheduler
 
-Dispatch is a full stack email scheduler built with React, Vite, Express, PostgreSQL, Redis, BullMQ, and Nodemailer. It includes account registration and login, a dashboard, scheduled email management, and a background delivery worker.
+Dispatch is a React/Express email scheduler with PostgreSQL, Redis/BullMQ, and a Nodemailer worker.
 
-## Run the complete app with Docker
+## Run locally with Docker Compose
 
-Requirements: Docker Desktop running and Node.js 20+ with npm.
-
-From this folder, run:
+If you do not already have a root `.env`, copy `.env.example` to `.env` and replace the placeholder values with local secrets. Preserve an existing `.env`. Then run from the project root:
 
 ```powershell
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 npm start
 ```
 
-This builds and starts the frontend, API, worker, PostgreSQL, and Redis. On a new database volume, PostgreSQL creates the schema automatically. The same UI is available at <http://localhost:5173> and <http://localhost:4000>; the API health endpoint is <http://localhost:4000/api/health>.
+Compose starts the frontend/API, worker, PostgreSQL, and Redis as separate local containers. The same UI is available at <http://localhost:5173> and <http://localhost:4000>. API health: <http://localhost:4000/api/health>.
 
-Stop the app with `Ctrl+C`. `docker compose down` stops the services and keeps data. `docker compose down -v` also deletes the local database and queue data.
-
-For real email delivery, set `JWT_SECRET` and any SMTP settings in a root `.env` before starting. Without SMTP settings, the worker uses an Ethereal test account and logs preview links instead of delivering to real recipients.
-
-## Run the frontend and API in development
-
-Start PostgreSQL and Redis with `docker compose up -d postgres redis`. Copy `.env.example` to `backend/.env` if needed. Then use separate terminals:
+To start only the local database and queue:
 
 ```powershell
-npm run db:init
-npm run backend
-npm run worker
-npm run frontend
+npm run db:up
 ```
 
-Open <http://localhost:5173>. Vite forwards `/api` requests to `http://127.0.0.1:4000`; set `API_PROXY_TARGET` if the API runs at a different address. You can also set `VITE_API_URL` in `frontend/.env` to override the browser API base URL.
+Stop containers with `docker compose down`; named volumes retain data. `docker compose down -v` deletes the local PostgreSQL and Redis data.
 
-## Services and API
+For manual development, keep PostgreSQL and Redis running, configure `backend/.env`, then use separate terminals for `npm run backend`, `npm run worker`, and `npm run frontend`. Initialize the schema once with `npm run db:init`.
 
-| Service | Local address | Purpose |
-| --- | --- | --- |
-| Frontend | `http://localhost:5173` | React app |
-| API | `http://localhost:4000/api` | Express REST API |
-| PostgreSQL | `localhost:5432` | User and email records |
-| Redis | `localhost:6379` | Persistent scheduled jobs |
+## Render free hobby deployment
 
-API routes include `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me`, `GET /api/emails/dashboard`, email create/list/detail/delete routes, and `GET /api/health`. Authenticated routes use `Authorization: Bearer <token>`.
+The root `render.yaml` defines a free Render Web Service, free Render Postgres, and free Redis-compatible Key Value service. Render doesn't provide free background-worker instances, so the web service starts the API and worker together. Postgres and Redis remain separate managed services.
 
-See `.env.example` for the available database, Redis, JWT, and SMTP environment variables. Change the local development JWT secret before deployment.
+No deploy or repository push has been performed. To deploy later, connect the repository in Render and create a Blueprint from `render.yaml`. Keep the web service, Postgres, and Key Value in the same region. During Blueprint setup, provide SMTP settings if you have a provider; do not put credentials in `render.yaml` or in Git.
 
+### Free-tier limits
+
+This is for a hobby/demo, not reliable production scheduling. Render's free web service sleeps after 15 minutes without incoming traffic, so the worker pauses too; due emails wait until the service wakes. Free Postgres expires after 30 days, and free Key Value is memory-only. The worker rebuilds missing BullMQ jobs from scheduled PostgreSQL rows after restart, but it cannot restore messages after the Postgres database expires. SMTP ports 25, 465, and 587 are blocked on Render free services; configure a mail provider that supports an available port such as 2525. These limits come from [Render's free plan docs](https://render.com/docs/free) and [Key Value docs](https://render.com/docs/key-value).
+
+For more reliable sends, use an always-on paid worker and persistent/paid database and queue services. Render's free plan does not offer a separate background worker.
+
+## Environment variables
+
+- `JWT_SECRET`: required signing secret. Compose reads it from the ignored root `.env`; Render generates it.
+- `DATABASE_URL`: local backend connection string or Render-managed Postgres URL.
+- `REDIS_URL`: local Redis URL or Render-managed Key Value URL.
+- `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`: local Compose database initialization values.
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM`: mail transport settings. Without SMTP configuration the worker uses an Ethereal test account, which captures mail instead of delivering it to recipients.
+
+The Compose-only `COMPOSE_DATABASE_URL` points at the `postgres` service name. `DATABASE_URL` in `.env.example` points at localhost for manual development.
+
+## API
+
+Routes include `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me`, `GET /api/emails/dashboard`, email create/list/detail/delete routes, and `GET /api/health`. Authenticated routes use `Authorization: Bearer <token>`.
+
+## Tests
+
+The repository has no test files or `test` scripts. The Docker build compiles the frontend and packages the backend; Compose health checks cover the API, PostgreSQL, and Redis.

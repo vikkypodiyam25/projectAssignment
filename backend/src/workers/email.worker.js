@@ -3,14 +3,23 @@ import { Worker } from 'bullmq';
 import { pool } from '../config/db.js';
 import { redisConnection } from '../config/redis.js';
 import { env } from '../config/env.js';
-import { EMAIL_QUEUE } from '../queues/email.queue.js';
+import { EMAIL_QUEUE, reconcileScheduledEmails } from '../queues/email.queue.js';
 let transporter;
+let shuttingDown = false;
 async function mailer() {
   if (transporter) return transporter;
   if (env.smtpHost) transporter = nodemailer.createTransport({ host: env.smtpHost, port: env.smtpPort, secure: env.smtpSecure, auth: env.smtpUser ? { user: env.smtpUser, pass: env.smtpPass } : undefined });
   else { const account = await nodemailer.createTestAccount(); transporter = nodemailer.createTransport({ host: account.smtp.host, port: account.smtp.port, secure: account.smtp.secure, auth: { user: account.user, pass: account.pass } }); console.log('Using Ethereal test account:', account.user); }
   return transporter;
 }
+async function reconcileQueue(recoverProcessing = false) {
+  try { await reconcileScheduledEmails({ recoverProcessing }); }
+  catch (error) { console.error('Could not reconcile scheduled email jobs:', error.message); }
+}
+await reconcileQueue(true);
+const reconciliationTimer = setInterval(() => reconcileQueue(), 30000);
+redisConnection.on('ready', () => reconcileQueue());
+
 const worker = new Worker(EMAIL_QUEUE, async (job) => {
   const client = await pool.connect();
   try {
@@ -40,5 +49,5 @@ worker.on('completed', (job) => console.log(`Email job ${job.id} completed`)); w
     catch (updateError) { console.error('Could not persist final email failure:', updateError.message); }
   }
 });
-async function shutdown() { await worker.close(); await redisConnection.quit(); await pool.end(); process.exit(0); }
+async function shutdown() { if (shuttingDown) return; shuttingDown = true; clearInterval(reconciliationTimer); await worker.close(); await redisConnection.quit(); await pool.end(); process.exit(0); }
 process.on('SIGINT', shutdown); process.on('SIGTERM', shutdown);

@@ -11,5 +11,6 @@ COPY backend/package*.json ./
 RUN npm ci --omit=dev
 COPY backend/src ./src
 COPY --from=frontend-build /app/frontend/dist ./public
-EXPOSE 4000
+USER node
+EXPOSE 10000
 CMD ["npm", "start"]
