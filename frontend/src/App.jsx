@@ -1,0 +1,11 @@
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { AuthProvider } from './hooks/useAuth.jsx';
+import ProtectedRoute from './components/ProtectedRoute.jsx';
+import { Layout } from './components/Layout.jsx';
+import AuthPage from './pages/AuthPage.jsx';
+import Dashboard from './pages/Dashboard.jsx';
+import EmailList from './pages/EmailList.jsx';
+import Compose from './pages/Compose.jsx';
+import EmailDetail from './pages/EmailDetail.jsx';
+import './styles.css';
+function App(){return <AuthProvider><BrowserRouter><Routes><Route path="/login" element={<AuthPage/>}/><Route path="/register" element={<AuthPage mode="register"/>}/><Route element={<ProtectedRoute/>}><Route element={<Layout/>}><Route index element={<Dashboard/>}/><Route path="/compose" element={<Compose/>}/><Route path="/emails/all" element={<EmailList listType="all"/>}/><Route path="/emails/scheduled" element={<EmailList listType="scheduled"/>}/><Route path="/emails/sent" element={<EmailList listType="sent"/>}/><Route path="/emails/failed" element={<EmailList listType="failed"/>}/><Route path="/email/:id" element={<EmailDetail/>}/></Route></Route><Route path="*" element={<Navigate to="/" replace/>}/></Routes></BrowserRouter></AuthProvider>;}export default App;

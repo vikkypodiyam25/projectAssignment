@@ -1,0 +1,87 @@
+services:
+  backend:
+    image: dispatch-backend:local
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: dispatch-backend
+    restart: unless-stopped
+    environment:
+      PORT: 4000
+      FRONTEND_URL: http://localhost:5173,http://127.0.0.1:5173
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/email_scheduler
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-local-development-secret-change-me}
+      DATABASE_SSL: "false"
+    ports:
+      - "4000:4000"
+      - "5173:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  worker:
+    image: dispatch-backend:local
+    container_name: dispatch-worker
+    restart: unless-stopped
+    command: ["npm", "run", "worker"]
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/email_scheduler
+      REDIS_URL: redis://redis:6379
+      DATABASE_SSL: "false"
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      EMAIL_FROM: ${EMAIL_FROM:-Email Scheduler <scheduler@example.test>}
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: dispatch-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: email_scheduler
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d email_scheduler"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Initialize the existing schema automatically on first startup.
+    # The official Postgres image runs SQL files from this directory once.
+    volumes:
+      - dispatch-postgres-data:/var/lib/postgresql/data
+      - ./backend/src/config/schema.sql:/docker-entrypoint-initdb.d/10-schema.sql:ro
+
+  redis:
+    image: redis:7-alpine
+    container_name: dispatch-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - dispatch-redis-data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  dispatch-postgres-data:
+  dispatch-redis-data:

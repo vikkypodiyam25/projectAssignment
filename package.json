@@ -1,0 +1,13 @@
+{
+  "name": "dispatch-email-scheduler",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "db:up": "docker compose up -d postgres redis",
+    "db:init": "npm --prefix backend run db:init",
+    "backend": "npm --prefix backend run dev",
+    "start": "docker compose up --build",
+    "worker": "npm --prefix backend run worker",
+    "frontend": "npm --prefix frontend run dev"
+  }
+}

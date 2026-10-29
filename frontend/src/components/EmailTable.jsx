@@ -1,0 +1,8 @@
+import { ArrowUpRight, MoreHorizontal, Trash2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import StatusBadge from './StatusBadge.jsx';
+export function formatDate(value) { return new Date(value).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }); }
+export default function EmailTable({ emails = [], compact = false, onDelete, emptyMessage = 'No emails to show yet.' }) {
+  if (!emails.length) return <div className="empty-state"><div className="empty-icon">✉</div><strong>Nothing here yet</strong><p>{emptyMessage}</p>{!compact&&<Link className="text-link" to="/compose">Schedule an email <ArrowUpRight size={14}/></Link>}</div>;
+  return <div className="table-scroll"><table className="email-table"><thead><tr><th>RECIPIENT</th><th>SUBJECT</th><th>STATUS</th><th>{compact?'ACTIVITY':'SCHEDULED FOR'}</th><th></th></tr></thead><tbody>{emails.map((email)=><tr key={email.id}><td><div className="recipient-cell"><span className="recipient-avatar">{email.recipient?.slice(0,1)?.toUpperCase()}</span><span>{email.recipient}</span></div></td><td className="subject-cell">{email.subject}</td><td><StatusBadge status={email.status}/></td><td className="date-cell">{formatDate(email.sent_at||email.scheduled_at)}</td><td className="row-actions-cell">{onDelete&&['scheduled','sent'].includes(email.status)&&<button className="row-action delete-action" onClick={()=>onDelete(email.id)} title="Delete email" aria-label={`Delete email to ${email.recipient}`}><Trash2 size={15}/></button>}<Link className="row-action" to={`/email/${email.id}`} aria-label="View email"><MoreHorizontal size={19}/></Link></td></tr>)}</tbody></table></div>;
+}
